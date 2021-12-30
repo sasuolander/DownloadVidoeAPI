@@ -1,4 +1,4 @@
-package fi.sasu.downloadvidoeapi;
+package fi.sasu.uploadvidoeapi;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
