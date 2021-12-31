@@ -74,13 +74,12 @@ record Inputs2(ArrayList<String> videos) {
 
 class RunnableForDownload implements Runnable {
     Logger logger = (Logger) LoggerFactory.getLogger(RunnableForDownload.class);
-    final String singletonIdentifier = Integer.toHexString(new Random().nextInt());
     private final String input;
     private final String path;
 
     RunnableForDownload(@NotNull String input, @NotNull String fileName, @NotNull FileExtension extension) {
         this.input = input;
-        this.path = FILEPATH + fileName + singletonIdentifier + extension.getExtension();
+        this.path = FILEPATH + fileName + Integer.toHexString(new Random().nextInt()) + extension.getExtension();
     }
 
     @Override
