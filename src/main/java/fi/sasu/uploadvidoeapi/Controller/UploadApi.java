@@ -9,13 +9,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
-import static fi.sasu.uploadvidoeapi.Controller.Util.decodeBase64;
 import static fi.sasu.uploadvidoeapi.Controller.Constant.FILEPATH;
+import static fi.sasu.uploadvidoeapi.Controller.Util.decodeBase64;
 
 class Constant {
     private Constant() {
