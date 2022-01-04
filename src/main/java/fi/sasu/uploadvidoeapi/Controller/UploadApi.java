@@ -1,6 +1,7 @@
 package fi.sasu.uploadvidoeapi.Controller;
 
 import ch.qos.logback.classic.Logger;
+import lombok.val;
 import org.apache.commons.codec.binary.Base64;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.LoggerFactory;
@@ -9,8 +10,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 import static fi.sasu.uploadvidoeapi.Controller.Util.decodeBase64;
 import static fi.sasu.uploadvidoeapi.Controller.Constant.FILEPATH;
@@ -20,7 +22,9 @@ class Constant {
     }
 
     static final String FILEPATH = "./temp/";
+}
 
+record Video(String video, String fileName, FileExtension type) {
 }
 
 enum FileExtension {
@@ -47,18 +51,10 @@ public class UploadApi {
     Logger logger = (Logger) LoggerFactory.getLogger(UploadApi.class);
 
     @PostMapping("/download")
-    public String downloadApi(@RequestBody Inputs inputs) {
+    public String downloadApi(@RequestBody ArrayList<Video> videos) {
         logger.info("main thread " + Thread.currentThread().getName());
 
-        // factory to generate and start thread
-        RunnableForDownload test1 = new RunnableForDownload(inputs.input(), "", FileExtension.MP4);
-        RunnableForDownload test2 = new RunnableForDownload(inputs.input2(), "", FileExtension.MP4);
-
-        Thread thread1 = new Thread(test1);
-        Thread thread2 = new Thread(test2);
-        thread1.start();
-        thread2.start();
-
+        val test = new VideoUpload(videos).runAll().done();
         // wait until all thread are finished then tell success,
         // Monitor Status of thread and send information for a failure
 
@@ -66,31 +62,70 @@ public class UploadApi {
     }
 }
 
-record Inputs(String input, String input2) {
+
+class VideoUpload extends VideoFuture {
+    private final Stream<Thread> videos;
+
+    public VideoUpload(List<Video> videos) {
+        this.videos = videos.stream()
+                .map(item -> new Thread(new VideoFuture(item.video(), item.fileName(), item.type())));
+    }
+
+    public boolean done() {
+        return !this.Status.containsValue(false);
+    }
+
+    public VideoUpload runAll() {
+        this.videos.forEach(Thread::run);
+        return this;
+    }
+
 }
 
-record Inputs2(ArrayList<String> videos) {
-}
+class VideoFuture extends RunnableForDownload {
+    private final Logger logger = (Logger) LoggerFactory.getLogger(VideoFuture.class);
+    public Boolean allSucseeded;
+    protected volatile ConcurrentHashMap<String, Boolean> Status;
 
-class RunnableForDownload implements Runnable {
-    Logger logger = (Logger) LoggerFactory.getLogger(RunnableForDownload.class);
-    private final String input;
-    private final String path;
+    VideoFuture() {
+    }
 
-    RunnableForDownload(@NotNull String input, @NotNull String fileName, @NotNull FileExtension extension) {
-        this.input = input;
-        this.path = FILEPATH + fileName + Integer.toHexString(new Random().nextInt()) + extension.getExtension();
+    VideoFuture(@NotNull String input, @NotNull String fileName, @NotNull FileExtension extension) {
+        super(input, fileName, extension);
     }
 
     @Override
     public void run() {
+        Status.put(this.id, false);
         logger.info("thread name {}", Thread.currentThread().getName());
-        logger.info("ThreadForDownload {}", this.input);
+        logger.info("ThreadForDownload {}", super.input);
         createFile();
         writeMethod();
+        Status.put(this.id, true);
+    }
+}
+
+class RunnableForDownload implements Runnable {
+    private final Random random = new Random();
+    private final Logger logger = (Logger) LoggerFactory.getLogger(RunnableForDownload.class);
+    private String path = null;
+    protected String input = null;
+    protected final String id = Integer.toHexString(random.nextInt());
+
+    RunnableForDownload() {
     }
 
-    public void createFile() {
+    RunnableForDownload(@NotNull String input, @NotNull String fileName, @NotNull FileExtension extension) {
+        this.input = input;
+        this.path = FILEPATH + fileName + id + extension.getExtension();
+    }
+
+    @Override
+    public void run() {
+        // abstract
+    }
+
+    protected void createFile() {
         try {
             File file = new File(this.path);
             if (file.createNewFile()) {
@@ -104,8 +139,7 @@ class RunnableForDownload implements Runnable {
         }
     }
 
-
-    public void writeMethod() {
+    protected void writeMethod() {
         try {
             byte[] decoded = decodeBase64(this.input);
             try (FileOutputStream myWriter = new FileOutputStream(this.path)) {
