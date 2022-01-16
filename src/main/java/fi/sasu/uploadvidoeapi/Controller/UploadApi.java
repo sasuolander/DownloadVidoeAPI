@@ -52,7 +52,7 @@ enum FileExtension {
 
 @RestController
 public class UploadApi {
-    Logger logger = (Logger) LoggerFactory.getLogger(UploadApi.class);
+    Logger logger = (Logger) LoggerFactory.getLogger(getClass());
 
     @PostMapping("/download")
     public String downloadApi(@RequestBody ArrayList<Video> videos) {
@@ -67,8 +67,10 @@ public class UploadApi {
 }
 
 
-class VideoUpload extends VideoFuture {
+class VideoUpload {
     private final Stream<Thread> videos;
+    public Boolean allSucseeded;
+    protected static volatile ConcurrentHashMap<String, Boolean> Status;
 
     public VideoUpload(List<Video> videos) {
         this.videos = videos.stream()
@@ -76,10 +78,11 @@ class VideoUpload extends VideoFuture {
     }
 
     public boolean done() {
-        return !this.Status.containsValue(false);
+        return !Status.containsValue(false);
     }
 
     public VideoUpload runAll() {
+        // limit how many thread is started,
         this.videos.forEach(Thread::run);
         return this;
     }
@@ -87,37 +90,29 @@ class VideoUpload extends VideoFuture {
 }
 
 class VideoFuture extends RunnableForDownload {
-    private final Logger logger = (Logger) LoggerFactory.getLogger(VideoFuture.class);
-    public Boolean allSucseeded;
-    protected volatile ConcurrentHashMap<String, Boolean> Status;
-
-    VideoFuture() {
-    }
+    private final Logger logger = (Logger) LoggerFactory.getLogger(getClass());
 
     VideoFuture(@NotNull String input, @NotNull String fileName, @NotNull FileExtension extension) {
         super(input, fileName, extension);
     }
 
     @Override
-    public void run() {
-        Status.put(this.id, false);
+    public synchronized void run() {
+        VideoUpload.Status.put(this.id, false);
         logger.info("thread name {}", Thread.currentThread().getName());
         logger.info("ThreadForDownload {}", super.input);
         createFile();
         writeMethod();
-        Status.put(this.id, true);
+        VideoUpload.Status.put(this.id, true);
     }
 }
 
 class RunnableForDownload implements Runnable {
     private final Random random = new Random();
-    private final Logger logger = (Logger) LoggerFactory.getLogger(RunnableForDownload.class);
+    private final Logger logger = (Logger) LoggerFactory.getLogger(getClass());
     private String path = null;
     protected String input = null;
     protected final String id = Integer.toHexString(random.nextInt());
-
-    RunnableForDownload() {
-    }
 
     RunnableForDownload(@NotNull String input, @NotNull String fileName, @NotNull FileExtension extension) {
         this.input = input;
@@ -129,7 +124,7 @@ class RunnableForDownload implements Runnable {
         // abstract
     }
 
-    protected void createFile() {
+    protected synchronized void createFile() {
         try {
             File file = new File(this.path);
             if (file.createNewFile()) {
