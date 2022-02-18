@@ -12,11 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
+import java.util.*;
 
 import static fi.sasu.uploadvidoeapi.Controller.Constant.FILEPATH;
 import static fi.sasu.uploadvidoeapi.Controller.Util.decodeBase64;
@@ -26,28 +22,6 @@ class Constant {
     }
 
     static final String FILEPATH = "./temp/";
-}
-
-record Video(String video, String fileName, FileExtension type) {
-}
-
-enum FileExtension {
-    MP4(".mp4"),
-    MOV(".mov"),
-    WMV(".wmv"),
-    AVI(".avi"),
-    FLV(".flv"),
-    TXT(".txt"); // for initial testing only
-    private final String extension;
-
-    FileExtension(String extension) {
-        this.extension = extension;
-    }
-
-    public String getExtension() {
-        return this.extension;
-    }
-
 }
 
 @RestController
@@ -67,28 +41,6 @@ public class UploadApi {
 }
 
 
-class VideoUpload {
-    private final Stream<Thread> videos;
-    public Boolean allSucseeded;
-    protected static volatile ConcurrentHashMap<String, Boolean> Status;
-
-    public VideoUpload(List<Video> videos) {
-        this.videos = videos.stream()
-                .map(item -> new Thread(new VideoFuture(item.video(), item.fileName(), item.type())));
-    }
-
-    public boolean done() {
-        return !Status.containsValue(false);
-    }
-
-    public VideoUpload runAll() {
-        // limit how many thread is started,
-        this.videos.forEach(Thread::run);
-        return this;
-    }
-
-}
-
 class VideoFuture extends RunnableForDownload {
     private final Logger logger = (Logger) LoggerFactory.getLogger(getClass());
 
@@ -97,10 +49,10 @@ class VideoFuture extends RunnableForDownload {
     }
 
     @Override
-    public synchronized void run() {
+    public void run() {
         VideoUpload.Status.put(this.id, false);
         logger.info("thread name {}", Thread.currentThread().getName());
-        logger.info("ThreadForDownload {}", super.input);
+        //logger.info("ThreadForDownload {}", super.input);
         createFile();
         writeMethod();
         VideoUpload.Status.put(this.id, true);
@@ -124,7 +76,7 @@ class RunnableForDownload implements Runnable {
         // abstract
     }
 
-    protected synchronized void createFile() {
+    protected void createFile() {
         try {
             File file = new File(this.path);
             if (file.createNewFile()) {
@@ -143,7 +95,7 @@ class RunnableForDownload implements Runnable {
             byte[] decoded = decodeBase64(this.input);
             try (FileOutputStream myWriter = new FileOutputStream(this.path)) {
                 myWriter.write(decoded);
-                logger.info("Successfully wrote to the file.");
+                logger.info("Successfully wrote to the file. thread name {}", Thread.currentThread().getName());
             }
         } catch (IOException e) {
             logger.info("An error occurred.");
